@@ -116,3 +116,5 @@ dev.off()
 
 wilcox.test(ceRNA.logFC.dt.cut[ceRNA == 1]$log2FC, ceRNA.logFC.dt.cut[ceRNA == 0]$log2FC, paired = F)
 t.test(ceRNA.logFC.dt.cut[ceRNA == 1]$log2FC, ceRNA.logFC.dt.cut[ceRNA == 0]$log2FC)
+
+
