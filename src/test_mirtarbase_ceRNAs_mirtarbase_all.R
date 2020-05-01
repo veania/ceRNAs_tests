@@ -4,8 +4,7 @@ source('src/func.R')
 
 # mirtarbase_all <- as.data.table(read_excel("data/miRTarBase_SE_WR.xls"))[`Species (miRNA)`=='Homo sapiens' & 
 #                                                                            `Species (Target Gene)`=='Homo sapiens']
-mirtarbase_lit <- as.data.table(read_excel('data/MicroRNA_Target_Sites.xlsx'))[`Species (miRNA)`=='Homo sapiens' & 
-                                                                                 `Species (Target Gene)`=='Homo sapiens']
+mirtarbase_valid <- as.data.table(read_excel('data/hsa_MTI.xlsx'))[`Species (miRNA)`=='Homo sapiens']
 #?? why so many validated but less in all?..
 
 fantom_DE <- fread('../oligo_DE_Summary_gene_filtered.tsv')
@@ -46,8 +45,28 @@ lncrna.mirna.int.fantom <-
 },USE.NAMES = T, simplify = F))
 lncrna.mirna.int.fantom$Target <- paste0('hsa-', lncrna.mirna.int.fantom$mirna)
 
-
-
+# library("biomaRt")
+# listMarts()
+# ensembl <- useMart("ensembl")
+# datasets <- listDatasets(ensembl)
+# ensembl = useDataset("hsapiens_gene_ensembl",mart=ensembl)
+# attributes = listAttributes(ensembl)
+# ensembl.mirna.corresp.gene.symbol <- getBM(attributes=c('ensembl_gene_id', 'mirbase_id', 'mirbase_accession', 'hgnc_symbol'), 
+#                                filters = 'hgnc_symbol', 
+#                                values = unique(fantom_DE.mirna.target$geneSymbol), 
+#                                mart = ensembl)
+# ensembl.mirna.corresp.mirbase_id <- getBM(attributes=c('ensembl_gene_id', 'mirbase_id', 'mirbase_accession', 'hgnc_symbol'), 
+#                                            filters = 'mirbase_id', 
+#                                            values = unique(lncrna.mirna.int.fantom$Target), 
+#                                            mart = ensembl)
+# 
+# 
+# not.found.mirna <- lncrna.mirna.int.fantom$Target[
+#   !tolower(lncrna.mirna.int.fantom$Target) %in% ensembl.mirna.corresp.mirbase_id$mirbase_id]
+# 
+# not.found.mirna %in% mirtarbase_valid$miRNA
+# 
+# 
 mature.mirna.ids <- unique(lncrna.mirna.int.fantom$Target)[grep('-3p', unique(lncrna.mirna.int.fantom$Target))]
 mature.mirna.ids2 <- unique(lncrna.mirna.int.fantom$Target)[grep('-5p', unique(lncrna.mirna.int.fantom$Target))]
 mature.mirna.ids <- c(mature.mirna.ids, mature.mirna.ids2)
@@ -75,7 +94,7 @@ to.check.mature.id <- tolower(to.find.mature.id)[!tolower(to.find.mature.id) %in
 
 mirna_id.corresp <- sapply(to.check.mature.id, function(mirna){
   print(mirna)
-  search.res <- unique(mirtarbase_lit[grep(mirna, miRNA, ignore.case = T)]$miRNA)
+  search.res <- unique(mirtarbase_valid[grep(mirna, miRNA, ignore.case = T)]$miRNA)
   if(length(search.res)>0){
     data.table(mirna.lnc.inter.db_id = mirna,
                mature_mirna = search.res)
@@ -86,75 +105,20 @@ mirna_id.corresp <- rbindlist(Filter(Negate(is.null), mirna_id.corresp))
 
 mirna_id.corresp.fixed <- data.table(
   mirna.lnc.inter.db_id = c('hsa-mir-1', 'hsa-mir-1', 'hsa-mir-153', 'hsa-mir-153', 
-                            'hsa-mir-147', 'hsa-mir-7',
-                            "hsa-mir-9", "hsa-mir-9"),
+                            'hsa-mir-147', 'hsa-mir-147', 'hsa-mir-7', 'hsa-mir-7', 'hsa-mir-7'),
   mature_mirna = c('hsa-miR-1-3p', 'hsa-miR-1-5p', 'hsa-miR-153-3p', 'hsa-miR-153-5p',
-                   'hsa-miR-147a', 'hsa-miR-7-5p',
-                   "hsa-mir-9-3p", "hsa-mir-9-5p"))
-mirna.correct <- c('hsa-mir-29b', 'hsa-mir-153', 'hsa-mir-199a', 'hsa-mir-125b', 'hsa-mir-218', 'hsa-mir-203')
+                   'hsa-miR-147a', 'hsa-miR-147b', 'hsa-miR-7-1-3p', 'hsa-miR-7-2-3p', 'hsa-miR-7-5p'))
+mirna.correct <- c('hsa-mir-29b', 'hsa-mir-199a', 'hsa-mir-125b', 'hsa-mir-218', 'hsa-mir-203')
 mirna_id.corresp.fixed <- rbindlist(list(mirna_id.corresp.fixed,
                                          mirna_id.corresp[mirna.lnc.inter.db_id %in% mirna.correct]))
 mirna_id.corresp.fixed <- rbindlist(list(mirnatable_long, mirna_id.corresp.fixed))
 mirna_id.corresp <- mirna_id.corresp.fixed
-
-
-
-
-
 
 lncrna.mirna.int.fantom <- merge(x = lncrna.mirna.int.fantom,
                                  y = mirna_id.corresp,
                                  by.x = 'Target',
                                  by.y = "mirna.lnc.inter.db_id")
 lncrna.mirna.int.fantom <- lncrna.mirna.int.fantom[, c('lncrna', 'mature_mirna')]
-
-# library("biomaRt")
-# listMarts()
-# ensembl <- useMart("ensembl")
-# datasets <- listDatasets(ensembl)
-# ensembl = useDataset("hsapiens_gene_ensembl",mart=ensembl)
-# attributes = listAttributes(ensembl)
-# ensembl.mirna.corresp.gene.symbol <- getBM(attributes=c('ensembl_gene_id', 'mirbase_id', 'mirbase_accession', 'hgnc_symbol'), 
-#                                filters = 'hgnc_symbol', 
-#                                values = unique(fantom_DE.mirna.target$geneSymbol), 
-#                                mart = ensembl)
-# ensembl.mirna.corresp.mirbase_id <- getBM(attributes=c('ensembl_gene_id', 'mirbase_id', 'mirbase_accession', 'hgnc_symbol'), 
-#                                            filters = 'mirbase_id', 
-#                                            values = unique(lncrna.mirna.int.fantom$Target), 
-#                                            mart = ensembl)
-# 
-# 
-# not.found.mirna <- lncrna.mirna.int.fantom$Target[
-#   !tolower(lncrna.mirna.int.fantom$Target) %in% ensembl.mirna.corresp.mirbase_id$mirbase_id]
-# 
-# not.found.mirna %in% mirtarbase_lit$miRNA
-# 
-# 
-# mature.mirna.ids <- unique(lncrna.mirna.int.fantom$Target)[grep('-3p', unique(lncrna.mirna.int.fantom$Target))]
-# mature.mirna.ids2 <- unique(lncrna.mirna.int.fantom$Target)[grep('-5p', unique(lncrna.mirna.int.fantom$Target))]
-# mature.mirna.ids <- c(mature.mirna.ids, mature.mirna.ids2)
-# rm(mature.mirna.ids2)
-# to.find.mature.id <- unique(lncrna.mirna.int.fantom$Target)[!unique(lncrna.mirna.int.fantom$Target) %in% mature.mirna.ids]
-# 
-# version=checkMiRNAVersion(to.find.mature.id, verbose = TRUE)
-# mirnatable <- as.data.table(getMiRNATable(version = "v22", species = "hsa"))
-# mirnatable <- mirnatable[Precursor %in% tolower(to.find.mature.id), c('Precursor', 'Mature1', 'Mature2')]
-# mirnatable.mature1 <- mirnatable[,c('Precursor', 'Mature1')]
-# setnames(mirnatable.mature1, 'Mature1', 'mature')
-# mirnatable.mature2 <- mirnatable[,c('Precursor', 'Mature2')]
-# setnames(mirnatable.mature2, 'Mature2', 'mature')
-# mirnatable_long <- rbindlist(list(mirnatable.mature1, mirnatable.mature2))[!is.na(mature)]
-# mirnatable_long <- rbindlist(list(mirnatable_long,
-#                                   data.table(Precursor = mature.mirna.ids,
-#                                              mature = mature.mirna.ids)))
-# 
-# to.check.mature.id <- tolower(to.find.mature.id)[!tolower(to.find.mature.id) %in% mirnatable$Precursor]
-# # library(miRNAmeConverter)
-# # MiRNANameConverter <- MiRNANameConverter()
-# # translateMiRNAName(MiRNANameConverter, miRNAs = "hsa-mir-9", versions = '17')
-# 
-
-
 
 
 
@@ -177,7 +141,7 @@ lncrna.mirna.int.fantom <- lncrna.mirna.int.fantom[, c('lncrna', 'mature_mirna')
 #                                by.x = 'Precursor',
 #                                by.y = 'mirbase_id')
 
-lnc.mir.targets <- merge(x = mirtarbase_lit,
+lnc.mir.targets <- merge(x = mirtarbase_valid,
                      y = lncrna.mirna.int.fantom,
                      by.x = 'miRNA',
                      by.y = 'mature_mirna',
@@ -226,7 +190,7 @@ df <- contingency.table
 library("graphics")
 library(viridis)
 
-png('out/chi.squared.sponges.png', width = 700)
+#png('out/chi.squared.sponges.png', width = 700)
 mosaicplot(df,
            main = "Gene expression falls more often in case of non-sponge lncRNAs", 
            sub = paste0('chi squared test p-value = ', round(test.res$p.value,33)),
@@ -251,7 +215,7 @@ wilcox.test(data[ceRNA == 'a sponge']$log2FC, data[ceRNA == 'not a sponge']$log2
 
 png('out/mirtarbase+lnctard/boxplot.mir.targets.vs.all.targets.non-sponge.lnc.png', width = 700)
 DrawTwoBoxplots(data, 
-                main = "All targets of miRNAs sponged by lncRNAs vs all targets of non-sponge lncRNAs\np-value = 0.00098")
+                main = "All targets of miRNAs sponged by lncRNAs vs all targets of non-sponge lncRNAs\np-value = 0.0003")
 dev.off()
 
 # compare only DE targets of mirna sponged by lncrna & DE targets of non-sponge lncrna
@@ -267,7 +231,7 @@ wilcox.test(data[ceRNA == 'a sponge']$log2FC, data[ceRNA == 'not a sponge']$log2
 
 png('out/mirtarbase+lnctard/boxplot.DE.mir.targets.vs.DE.non-sponge.lnc.targets.png', width = 700)
 DrawTwoBoxplots(data, 
-                main = "DE targets of miRNAs sponged by lncRNAs vs DE targets of non-sponge lncRNAs\np-value = 0.0001")
+                main = "DE targets of miRNAs sponged by lncRNAs vs DE targets of non-sponge lncRNAs\np-value = 0.037")
 dev.off()
 
 # compare only DE targets of mirna sponged by lncrna & DE targets all lncrna
@@ -283,7 +247,7 @@ wilcox.test(data[ceRNA == 'a sponge']$log2FC, data[ceRNA == 'all']$log2FC, paire
 
 png('out/mirtarbase+lnctard/boxplot.DE.mir.targets.vs.DE.all.lnc.targets.png', width = 700)
 DrawTwoBoxplots(data, 
-                main = "DE targets of miRNAs sponged by lncRNAs vs DE targets of all lncRNAs\np-value = 0.00014")
+                main = "DE targets of miRNAs sponged by lncRNAs vs DE targets of all lncRNAs\np-value = 0.044")
 dev.off()
 
 # compare all targets of mirna sponged by lncrna & all targets all lncrna
@@ -298,5 +262,5 @@ wilcox.test(data[ceRNA == 'a sponge']$log2FC, data[ceRNA == 'all']$log2FC, paire
 
 png('out/mirtarbase+lnctard/boxplot.all.mir.targets.vs.all.lnc.targets.png', width = 700)
 DrawTwoBoxplots(data, 
-                main = "All targets of miRNAs sponged by lncRNAs vs all targets of all lncRNAs\np-value = 0.0012")
+                main = "All targets of miRNAs sponged by lncRNAs vs all targets of all lncRNAs\np-value = 0.0003")
 dev.off()
