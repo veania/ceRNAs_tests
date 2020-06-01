@@ -1,5 +1,5 @@
 library(data.table)
-home.dir <- '/home/anna/medved/home/aelizarova/'
+home.dir <- '/home/anna/medved/'
 
 DE <- fread(file.path(home.dir, 'ceRNAs/oligo_DE_Summary_gene_filtered.tsv'))
 lncRNAs_summary <- fread(file.path(home.dir, 'ceRNAs/lncRNAs_summary.tsv'))
@@ -39,13 +39,17 @@ df <- as.data.frame(contingency.table[,-c('expr.change')])
 colnames(df)
 rownames(df) <- c('log2FC < -1', 'logFC > 1')
 library("graphics")
-
+library(viridis)
 png('out/chi.squared.sponges.png', width = 700)
 mosaicplot(df,
            main = "Gene expression falls more often in case of non-sponge lncRNAs", 
            sub = paste0('chi squared test p-value = ', round(test.res$p.value,33)),
            cex.axis = 1, 
-           color = viridis(4, alpha = 0.5))
+           color = viridis(4, alpha = 0.5),)
+library("vcd")
+struct <- structable(df)
+mosaic(struct, shade = TRUE, direction = "v", pop = FALSE)
+labeling_cells(text = struct, margin = 0)(struct)
 dev.off()
 
 library(reshape2 )
@@ -71,20 +75,11 @@ levels(data$ceRNA) <- ifelse(levels(data$ceRNA) == '0', 'not a sponge', 'a spong
 
 
 ylim1 = boxplot.stats(data$log2FC)$stats[c(1, 5)]
-
+source('src/func.R')
 png('out/boxplot.sponges.png', width = 700)
 # Plot
-data %>%
-  ggplot( aes(x=ceRNA, y=log2FC, fill=ceRNA)) +
-  geom_boxplot() +
-  scale_fill_viridis(discrete = TRUE, alpha=0.6) +
-  theme_ipsum() +
-  theme(
-    legend.position="none",
-    plot.title = element_text(size=11)
-  ) +
-  ggtitle("p-value < 2.2e-16") +
-  xlab("")
+DrawTwoBoxplots(data, 
+                main = "p-value < 2.2e-16")
 dev.off()
 
 wilcox.test(ceRNA.logFC.dt[ceRNA == 1]$log2FC, ceRNA.logFC.dt[ceRNA == 0]$log2FC, paired = F)
@@ -101,17 +96,8 @@ ylim1 = boxplot.stats(data$log2FC)$stats[c(1, 5)]
 
 png('out/boxplot.logFC.cut.sponges.png', width = 700)
 # Plot
-data %>%
-  ggplot( aes(x=ceRNA, y=log2FC, fill=ceRNA)) +
-  geom_boxplot() +
-  scale_fill_viridis(discrete = TRUE, alpha=0.6) +
-  theme_ipsum() +
-  theme(
-    legend.position="none",
-    plot.title = element_text(size=11)
-  ) +
-  ggtitle("p-value < 2.2e-16") +
-  xlab("")
+DrawTwoBoxplots(data, 
+                main = "p-value < 2.2e-16")
 dev.off()
 
 wilcox.test(ceRNA.logFC.dt.cut[ceRNA == 1]$log2FC, ceRNA.logFC.dt.cut[ceRNA == 0]$log2FC, paired = F)

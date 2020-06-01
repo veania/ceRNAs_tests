@@ -14,47 +14,94 @@ fantom_DE$geneSymbol <- stringr::str_remove(fantom_DE$geneSymbol, 'HG')
 
 # experimentally confirmed from DB 2019  
 lncRNA.miRNA.interaction <- fread('data/lncTarD.txt')[grep('mir', Target, ignore.case = T), c('Regulator', 'RegulatorEnsembleID', 'RegulatorAliases', 'Target')]
+lncRNA.miRNA.interaction <- as.data.table(read_excel('data/lnc2target.xlsx'))[
+  `Species`=='Homo sapiens'][
+    grep('mir', Target_official_symbol,ignore.case = T), c("lncRNA_name_from_paper",
+                                                           "LncRNA_official_symbol",
+                                                           "Ensembl_ID",
+                                                           "Target_symbol_from_paper",
+                                                           "Target_official_symbol",
+                                                           "Target_entrez_gene_ID")]
+setnames(lncRNA.miRNA.interaction, c("LncRNA_official_symbol", "Ensembl_ID"), 
+                                   c('Regulator', 'RegulatorEnsembleID'))
+lncRNA.miRNA.interaction$lncRNA_name_from_paper <- toupper(lncRNA.miRNA.interaction$lncRNA_name_from_paper)
+lnc2target.int <- intersect(toupper(unique(lncRNA.miRNA.interaction$lncRNA_name_from_paper)), 
+                            unique(lncRNA.miRNA.interaction$Regulator))
+lnc2target.lncrnas <- c(unique(lncRNA.miRNA.interaction$lncRNA_name_from_paper)[
+  !unique(lncRNA.miRNA.interaction$lncRNA_name_from_paper) %in% lnc2target.int],
+  unique(lncRNA.miRNA.interaction$Regulator)[
+    !unique(lncRNA.miRNA.interaction$Regulator) %in% lnc2target.int],
+  lnc2target.int)
+lnc2target.NOT.in.fantom <- unique(lncRNA.miRNA.interaction[!RegulatorEnsembleID %in% fantom_DE$KD.geneID,
+                                                     c('Regulator', 'RegulatorEnsembleID')])[
+                                                       Regulator != 'NA' & RegulatorEnsembleID != 'NA']
+library("biomaRt")
+listMarts()
+ensembl <- useMart("ensembl")
+datasets <- listDatasets(ensembl)
+ensembl = useDataset("hsapiens_gene_ensembl",mart=ensembl)
+attributes = listAttributes(ensembl)
+lnc2target.NOT.in.fantom.biomart <- getBM(attributes=c('ensembl_gene_id', 'hgnc_symbol'),
+                               filters = 'ensembl_gene_id',
+                               values = unique(lnc2target.NOT.in.fantom$RegulatorEnsembleID),
+                               mart = ensembl)
+lnc2target.NOT.in.fantom.biomart <- as.data.table(lnc2target.NOT.in.fantom.biomart)
+setnames(lnc2target.NOT.in.fantom.biomart, colnames(lnc2target.NOT.in.fantom.biomart), 
+         c('RegulatorEnsembleID', 'biomart_hgnc'))
+lnc2target.NOT.in.fantom.biomart <- merge(lnc2target.NOT.in.fantom,
+                                          lnc2target.NOT.in.fantom.biomart,
+                                          by = 'RegulatorEnsembleID')
 
-lncRNA.knownCE.in.fantom <- unique(lncRNA.miRNA.interaction[RegulatorEnsembleID %in% fantom_DE$KD.geneID]$Regulator)
-lncRNA.knownCE.not.in.fantom <- unique(lncRNA.miRNA.interaction[!RegulatorEnsembleID %in% fantom_DE$KD.geneID]$Regulator)
 
-lncrna_aliases <- str_split_fixed(lncRNA.miRNA.interaction$RegulatorAliases[!is.na(lncRNA.miRNA.interaction$RegulatorAliases)], pattern = '\\|', 11)
-lncrna_aliases <- unique(as.vector(lncrna_aliases))
-lncrna_aliases <- lncrna_aliases[!lncrna_aliases == ""]
-lncRNA.knownCE.in.fantom2 <- lncrna_aliases[lncrna_aliases %in% fantom_DE$KD.geneSymbol]
-aliases_search <- sapply(lncrna_aliases, function(alias){
-  print(alias)
-  unique(fantom_DE[grep(alias, geneSymbol,ignore.case = T)]$geneSymbol)
-}, USE.NAMES = T, simplify = F)
-aliases_search <- lapply(aliases_search, function(x){if(length(x)>0){x}})
-aliases_search <- Filter(Negate(is.null), aliases_search)
-lncRNA.knownCE.in.fantom.to.add <- c("HOXD-AS1", "ZEB2-AS", "ILF3-AS1", "LINC00152", "CDKN2B-AS", "NME1")
+fantomDE.biomart <- getBM(attributes=c('ensembl_gene_id', 'hgnc_symbol'),
+                                          filters = 'ensembl_gene_id',
+                                          values = unique(fantom_DE$KD.geneID),
+                                          mart = ensembl)
+fantomDE.biomart <- as.data.table(fantomDE.biomart)
+setnames(fantomDE.biomart, colnames(fantomDE.biomart), c('KD.geneID', 'biomart_hgnc'))
+fantomDE.biomart <- merge(fantomDE.biomart,
+                          unique(fantom_DE[, c('KD.geneID',"KD.geneSymbol")]))
+fantomDE.biomart[biomart_hgnc !=KD.geneSymbol & biomart_hgnc !='']$biomart_hgnc %in% lnc2target.NOT.in.fantom.biomart$biomart_hgnc
 
-lncRNA.knownCE.in.fantom <- c(lncRNA.knownCE.in.fantom,
-                              lncRNA.knownCE.in.fantom2,
-                              lncRNA.knownCE.in.fantom.to.add)
 
-lncrna.mirna.int.fantom <- 
-  rbindlist(sapply(lncRNA.knownCE.in.fantom, function(alias){
-  res <- lncRNA.miRNA.interaction[grep(alias, RegulatorAliases)]
-  if(res[,.N] == 0){
-    res <- lncRNA.miRNA.interaction[grep(alias, Regulator)]
-  }
-  data.table(lncrna = alias,
-             mirna = res$Target)
-},USE.NAMES = T, simplify = F))
-lncrna.mirna.int.fantom$Target <- paste0('hsa-', lncrna.mirna.int.fantom$mirna)
 
-# library("biomaRt")
-# listMarts()
-# ensembl <- useMart("ensembl")
-# datasets <- listDatasets(ensembl)
-# ensembl = useDataset("hsapiens_gene_ensembl",mart=ensembl)
-# attributes = listAttributes(ensembl)
-# ensembl.mirna.corresp.gene.symbol <- getBM(attributes=c('ensembl_gene_id', 'mirbase_id', 'mirbase_accession', 'hgnc_symbol'), 
-#                                filters = 'hgnc_symbol', 
-#                                values = unique(fantom_DE.mirna.target$geneSymbol), 
-#                                mart = ensembl)
+
+
+
+
+
+
+# lncRNA.knownCE.in.fantom <- unique(lncRNA.miRNA.interaction[RegulatorEnsembleID %in% fantom_DE$KD.geneID]$Regulator)
+# lncRNA.knownCE.not.in.fantom <- unique(lncRNA.miRNA.interaction[!RegulatorEnsembleID %in% fantom_DE$KD.geneID]$Regulator)
+# 
+# lncrna_aliases <- str_split_fixed(lncRNA.miRNA.interaction$RegulatorAliases[!is.na(lncRNA.miRNA.interaction$RegulatorAliases)], pattern = '\\|', 11)
+# lncrna_aliases <- unique(as.vector(lncrna_aliases))
+# lncrna_aliases <- lncrna_aliases[!lncrna_aliases == ""]
+# lncRNA.knownCE.in.fantom2 <- lncrna_aliases[lncrna_aliases %in% fantom_DE$KD.geneSymbol]
+# aliases_search <- sapply(lncrna_aliases, function(alias){
+#   print(alias)
+#   unique(fantom_DE[grep(alias, geneSymbol,ignore.case = T)]$geneSymbol)
+# }, USE.NAMES = T, simplify = F)
+# aliases_search <- lapply(aliases_search, function(x){if(length(x)>0){x}})
+# aliases_search <- Filter(Negate(is.null), aliases_search)
+# lncRNA.knownCE.in.fantom.to.add <- c("HOXD-AS1", "ZEB2-AS", "ILF3-AS1", "LINC00152", "CDKN2B-AS", "NME1")
+# 
+# lncRNA.knownCE.in.fantom <- c(lncRNA.knownCE.in.fantom,
+#                               lncRNA.knownCE.in.fantom2,
+#                               lncRNA.knownCE.in.fantom.to.add)
+
+# lncrna.mirna.int.fantom <- 
+#   rbindlist(sapply(lncRNA.knownCE.in.fantom, function(alias){
+#   res <- lncRNA.miRNA.interaction[grep(alias, RegulatorAliases)]
+#   if(res[,.N] == 0){
+#     res <- lncRNA.miRNA.interaction[grep(alias, Regulator)]
+#   }
+#   data.table(lncrna = alias,
+#              mirna = res$Target)
+# },USE.NAMES = T, simplify = F))
+# lncrna.mirna.int.fantom$Target <- paste0('hsa-', lncrna.mirna.int.fantom$mirna)
+
+
 # ensembl.mirna.corresp.mirbase_id <- getBM(attributes=c('ensembl_gene_id', 'mirbase_id', 'mirbase_accession', 'hgnc_symbol'), 
 #                                            filters = 'mirbase_id', 
 #                                            values = unique(lncrna.mirna.int.fantom$Target), 
