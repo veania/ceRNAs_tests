@@ -101,7 +101,7 @@ setorder(num_mirnas_per_lnc, num_mirnas_per_lncrna)
 write.table(num_mirnas_per_lnc, 'out/lnc_mir_prediction/mirnas_per_lncrna.tsv', 
 			quote = F, row.names = F, sep = '\t')
 
-histogram(num_mirnas_per_lnc$V1, 
+histogram(num_mirnas_per_lnc$num_mirnas_per_lncrna, 
           type = 'count',
           nint = 100, 
           main = 'Distribution of predicted miRNA targets per lncRNA',
@@ -160,6 +160,8 @@ num_mirnas_tar_per_lnc <-
         by = "KD.geneSymbol")
 setnames(num_mirnas_tar_per_lnc, 'V1', 'num_targets_per_lnc')
 
+# scatterplot num of predicted mirnas vs 
+# num of targets of the mirna in fatnom per lncrna 
 PrettyScatter(x = num_mirnas_tar_per_lnc$num_targets_per_lnc,  
               y = num_mirnas_tar_per_lnc$num_mirnas_per_lncrna,
               panel.first.step = 500,
@@ -247,6 +249,7 @@ png('out/mirtarbase+lastal/boxplots.change.num.targets.thresholds.png', width = 
 DrawMultipleBoxplots(list.val, ylab = 'logFC', main = '', ylim = c(min(unlist(list.val)), 11),
                   cex.lab.x = 0.9, xlim = c(0.8,3.9))
 dev.off()
+
 
 png('out/mirtarbase+lastal/three.boxplots.signif.png', width = 700, height = 600)
 DrawMultipleBoxplots(list.val, ylab = 'logFC', main = '', ylim = c(min(unlist(list.val)), 11),
