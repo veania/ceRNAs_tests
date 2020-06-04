@@ -2,15 +2,18 @@ library(readxl)
 library(data.table)
 library(miRBaseConverter)
 library(biomaRt)
+library(lattice)
 
 source('src/func.R')
 
 
 
-lastal.res <- fread("grep -v '^#' /home/anna/medved/ceRNAs/ceRNAs_tests/out/lnc_mir_prediction/myalns.tab")
+lastal.res <- fread("grep -v '^#' out/lnc_mir_prediction/myalns.tab")
 
-lncrnas.precursors <- fread('/home/anna/medved/ceRNAs/ceRNAs_tests/data/lncrna_mir_precursors.txt', header = F)
-setnames(lncrnas.precursors, colnames(lncrnas.precursors), c('lncrna', 'mirna.precursor'))
+lncrnas.precursors <- fread('data/lncrna_mir_precursors.txt', header = F)
+setnames(lncrnas.precursors, 
+         colnames(lncrnas.precursors), 
+         c('lncrna', 'mirna.precursor'))
 
 fantom_DE <- fread('../oligo_DE_Summary_gene_filtered.tsv')
 fantom_DE$geneSymbol <- stringr::str_remove(fantom_DE$geneSymbol, 'HG')
@@ -75,11 +78,26 @@ lnc.mir.tar.fantom <- merge(x = lnc.mir.tar,
                             y = fantom_DE,
                             by.x = c('lncrna', 'Target Gene'),
                             by.y = c('KD.geneID', 'geneSymbol'))
-write.table(lnc.mir.tar.fantom, 'out/lnc_mir_prediction/lnc.mir.tar.fantom.mir.included.tsv')
+lnc.mir.tar.fantom <- 
+  unique(lnc.mir.tar.fantom[,c('lncrna', 'mature.mirna', 'Target Gene', 
+                               'log2FC', 'KD.geneSymbol')])
+# write.table(lnc.mir.tar.fantom, 'out/lnc_mir_prediction/lnc.mir.tar.fantom.mir.included.tsv')
 
+num_mirnas_per_target <- 
+  lnc.mir.tar.fantom[, length(unique(.SD$mature.mirna)), by = 'Target Gene']
+histogram(num_mirnas_per_target$V1, 
+          type = 'count',
+          nint = 100, 
+          main = 'Distribution of miRNAs per target',
+          xlab = 'Number of miRNAs that sponge the target',
+          col = "#AEAEEE96")
 
 la <- lnc.mir.tar.fantom[, length(unique(.SD$mature.mirna)), by = "KD.geneSymbol"]
-library(lattice)
+setnames(la, 'V1', 'num_mirnas_per_lncrna')
+setorder(la, num_mirnas_per_lncrna)
+write.table(la, 'out/lnc_mir_prediction/mirnas_per_lncrna.tsv', 
+			quote = F, row.names = F, sep = '\t')
+
 histogram(la$V1, 
           type = 'count',
           nint = 100, 
@@ -87,18 +105,66 @@ histogram(la$V1,
           xlab = 'Number of predicted miRNA targets per lncRNA',
           col = "#EEAEEE96")
 
-lnc.mir.tar.fantom <- unique(lnc.mir.tar.fantom[,c('lncrna', 'Target Gene', 'log2FC', 'KD.geneSymbol')])
-boxplot(lnc.mir.tar.fantom$log2FC)
-write.table(lnc.mir.tar.fantom, 'out/lnc_mir_prediction/lnc.mir.tar.fantom.tsv', quote = F, row.names = F, sep = '\t')
+la$KD.geneSymbol <- factor(la$KD.geneSymbol, 
+                           levels = unique(la$KD.geneSymbol))
+dev.off()
 
 
+is.even <- function(x) x %% 2 == 0
+
+
+# dotplot num of predicted mirnas per lncrna
+png('out/lnc_mir_prediction/mirnas_per_lncrna.png', width = 2100)
+mypanel<-function(x,y,...){
+  panel.dotplot(x, y, ...)
+  panel.text(x = c(1:137)[1:26],
+             y = as.numeric(la$num_mirnas_per_lncrna)[1:26]+70,
+             labels=la$num_mirnas_per_lncrna[1:26],
+             cex = 0.85)
+  panel.text(x = c(1:137)[27:137][is.even(c(27:137))],
+             y = as.numeric(la$num_mirnas_per_lncrna)[27:137][is.even(c(27:137))]-60,
+             labels=la$num_mirnas_per_lncrna[27:137][is.even(c(27:137))],
+             cex = 0.8)
+  panel.text(x = c(1:137)[27:137][!is.even(c(27:137))]-0.1,
+             y = as.numeric(la$num_mirnas_per_lncrna)[27:137][!is.even(c(27:137))]+60,
+             labels=la$num_mirnas_per_lncrna[27:137][!is.even(c(27:137))],
+             cex = 0.8)
+}
+
+dotplot(num_mirnas_per_lncrna ~ KD.geneSymbol, la,
+        main = list(label = 'Distribution of predicted miRNA targets per lncRNA',
+                    cex = 1.2),
+        ylab = list(label = 'Number of predicted miRNAs per lncRNA',
+                    cex = 1),
+        scales=list(y=list(rot=0, tick.number = 20, cex = 1), 
+                    x=list(rot=45, cex = 1),
+                    relation = 'free'),
+        ylim = c(110,2500),
+        panel=mypanel)
+dev.off()
+
+lnc.tar.fantom <- unique(lnc.mir.tar.fantom[,c('lncrna', 'Target Gene', 'log2FC', 'KD.geneSymbol')])
+boxplot(lnc.tar.fantom$log2FC)
+# write.table(lnc.tar.fantom, 'out/lnc_mir_prediction/lnc.tar.fantom.tsv', 
+# 	quote = F, row.names = F, sep = '\t')
+
+fantom_DE_not_sponge <- fantom_DE[!(KD.geneID %in% lnc.tar.fantom$lncrna &
+                                      geneSymbol %in% lnc.tar.fantom$`Target Gene`)]
+
+# scatterplot num of predicted mirnas vs 
+# num of targets of the mirna in fatnom per lncrna 
+
+merge(x = la,
+      y = lnc.tar.fantom[, length(unique(.SD$`Target Gene`)), 
+                             by = "KD.geneSymbol"],
+      by = "KD.geneSymbol")
 
 
 # beautiful pictures
-lnc.mir.tar.fantom <- fread('out/lnc_mir_prediction/lnc.mir.tar.fantom.tsv')
+lnc.tar.fantom <- fread('out/lnc_mir_prediction/lnc.tar.fantom.tsv')
 # compare logFC of targets of mirna sponged by lncrna & all targets of lncrna
 data <- data.table(ceRNA = T,
-                   log2FC =lnc.mir.tar.fantom$log2FC)
+                   log2FC =lnc.tar.fantom$log2FC)
 data <- rbindlist(list(data,
                        data.table(ceRNA = F,
                                   log2FC = fantom_DE$log2FC)))
@@ -109,13 +175,13 @@ wilcox.test(data[ceRNA == 'a sponge']$log2FC, data[ceRNA == 'all']$log2FC, paire
 #ylim1 = boxplot.stats(data$log2FC)$stats[c(1, 5)]
 
 png('out/mirtarbase+lastal/boxplot.mir.targets.vs.all.lnc.targets.png', width = 700)
-DrawTwoBoxplots(data, 
+DrawTwoBoxplots(data,
                 main = "All targets of miRNAs sponged by lncRNAs vs all targets of lncRNAs\np-value < 2.2e-16")
 dev.off()
 
 # compare only DE targets of mirna sponged by lncrna & DE targets of non-sponge lncrna
 data <- data.table(ceRNA = T,
-                   log2FC = lnc.mir.tar.fantom[log2FC > 1 | log2FC < -1]$log2FC)
+                   log2FC = lnc.tar.fantom[log2FC > 1 | log2FC < -1]$log2FC)
 data <- rbindlist(list(data,
                        data.table(ceRNA = F,
                                   log2FC = fantom_DE[log2FC > 1 | log2FC < -1]$log2FC)))
@@ -124,16 +190,13 @@ levels(data$ceRNA) <- ifelse(levels(data$ceRNA) == F, 'all', 'a sponge')
 wilcox.test(data[ceRNA == 'a sponge']$log2FC, data[ceRNA == 'all']$log2FC, paired = F)
 
 png('out/mirtarbase+lastal/boxplot.DE.mir.targets.vs.DE.all.lnc.targets.png', width = 700)
-DrawTwoBoxplots(data, 
+DrawTwoBoxplots(data,
                 main = "DE targets of miRNAs sponged by lncRNAs vs DE targets of non-sponge lncRNAs\np-value < 2.2e-16")
 dev.off()
 
 # all targets of fantom lncrnas except targets of sponged mirnas
-fantom_DE_not_sponge <- fantom_DE[!(KD.geneID %in% lnc.mir.tar.fantom$lncrna & 
-                                    geneSymbol %in% lnc.mir.tar.fantom$`Target Gene`)]
-
 data <- data.table(ceRNA = T,
-                   log2FC =lnc.mir.tar.fantom$log2FC)
+                   log2FC =lnc.tar.fantom$log2FC)
 data <- rbindlist(list(data,
                        data.table(ceRNA = F,
                                   log2FC = fantom_DE_not_sponge$log2FC)))
@@ -144,15 +207,18 @@ wilcox.test(data[ceRNA == 'a sponge']$log2FC, data[ceRNA == 'not a sponge']$log2
 #ylim1 = boxplot.stats(data$log2FC)$stats[c(1, 5)]
 
 png('out/mirtarbase+lastal/boxplot.mir.targets.vs.all.targets.non-sponge.lnc.png', width = 700)
-DrawTwoBoxplots(data, 
+DrawTwoBoxplots(data,
                 main = "All targets of miRNAs sponged by lncRNAs vs all targets of lncRNAs\np-value < 2.2e-16")
 dev.off()
 
 
 # all three in one
-list.val = list(all = fantom_DE$log2FC,
-                `not targeted by\nsponged miRNAs` = fantom_DE_not_sponge$log2FC,
-                `targeted by\nsponged miRNAs` = lnc.mir.tar.fantom$log2FC)
+list.val = list(
+  all = fantom_DE$log2FC,
+  `not targeted by\nsponged miRNAs` = fantom_DE_not_sponge$log2FC,
+  `targeted by\nsponged miRNAs` = lnc.tar.fantom$log2FC,
+  `#(mir_per_lnc) > 20` = 
+    lnc.tar.fantom[KD.geneSymbol %in% la[num_mirnas_per_lncrna > 20]$KD.geneSymbol]$log2FC)
 png('out/mirtarbase+lastal/three.boxplots.signif.png', width = 700, height = 600)
 DrawThreeBoxplots(list.val, ylab = 'logFC', main = '', ylim = c(min(unlist(list.val)), 11),
                   cex.lab.x = 1.1)
@@ -178,8 +244,8 @@ text(1.3,y+0.5,"***")
 dev.off()
 
 # chi squared
-contingency.table.sponge <- data.table('logFC < 0' = sum(lnc.mir.tar.fantom$log2FC < 0),
-                                       'logFC > 0' = sum(lnc.mir.tar.fantom$log2FC>0))
+contingency.table.sponge <- data.table('logFC < 0' = sum(lnc.tar.fantom$log2FC < 0),
+                                       'logFC > 0' = sum(lnc.tar.fantom$log2FC>0))
 contingency.table.not.sponge <- data.table('logFC < 0' = sum(fantom_DE_not_sponge$log2FC < -0),
                                            'logFC > 0' = sum(fantom_DE_not_sponge$log2FC>0))
 contingency.table <- rbindlist(list(contingency.table.not.sponge,
@@ -193,9 +259,9 @@ library(viridis)
 
 #png('out/chi.squared.sponges.png', width = 700)
 mosaicplot(df,
-           main = "Gene expression falls more often in case of non-sponge lncRNAs", 
+           main = "Gene expression falls more often in case of non-sponge lncRNAs",
            sub = 'chi squared test p-value < 2.2e-16',
-           cex.axis = 1, 
+           cex.axis = 1,
            color = viridis(4, alpha = 0.5))
 mtext(df[2, 'logFC < 0'], at = 0.75, line = -2)
 mtext('lalala', at = 0.75, line = -5.5)
@@ -205,7 +271,7 @@ mtext('lalala', at = 0.25, line = -3)
 
 library("vcd")
 data <- data.table(`is the lncRNA a sponge?` = T,
-                   log2FC =lnc.mir.tar.fantom$log2FC)
+                   log2FC =lnc.tar.fantom$log2FC)
 data <- rbindlist(list(data,
                        data.table(`is the lncRNA a sponge?` = F,
                                   log2FC = fantom_DE_not_sponge$log2FC)))
