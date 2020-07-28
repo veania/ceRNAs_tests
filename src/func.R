@@ -34,7 +34,7 @@ DrawMultipleBoxplots <- function(list.val, ylab = '', main = '',
   proportion <- unlist(lapply(list.val, length))/sum(unlist(lapply(list.val, length)))
   at.x <- seq(1,by=.3,length.out=length(list.val))
   DrawBaseBoxplot(list.val, cex.lab, ylim, proportion, at.x, xlim, col = F)
-  abline(h = at.y, col = 'grey80')
+  #abline(h = at.y, col = 'grey80')
   # grid(5,5)
   par(new=TRUE)
   DrawBaseBoxplot(list.val, cex.lab, ylim, proportion, at.x, xlim, col = viridis(length(list.val), alpha=0.6))
@@ -52,26 +52,54 @@ DrawMultipleBoxplots <- function(list.val, ylab = '', main = '',
 
 is.even <- function(x) x %% 2 == 0
 
-PrettyScatter <- function(x, y, bg = "#EEAEEE96", 
-                          main = '', panel.first.step = 1, cex.lab = 1.5, 
-                          xlab = '', ylab = ''){
-  plot(x, y, xlim = c(min(x), max(x)), ylim = c(min(y), max(y)),
+# PrettyScatter <- function(x, y, bg = "#EEAEEE96", 
+#                           main = '', panel.first.step = 1, cex.lab = 1.5, 
+#                           xlab = '', ylab = ''){
+#   plot(x, y, xlim = c(min(x), max(x)), ylim = c(min(y), max(y)),
+#        xlab = xlab, ylab = ylab, 
+#        cex.lab = cex.lab,
+#        bg = bg, # Fill colour
+#        col = "grey10",
+#        pch = 21,
+#        axes = FALSE, # Don't plot the axes
+#        frame.plot = FALSE, # Remove the frame 
+#        #panel.first = ,
+#        main = main)
+#   abline(h = seq(round(min(x)), round(max(y)), panel.first.step), col = 'grey60')
+#   
+#   at = pretty(x)
+#   at = at[-c(1,length(at))]
+#   mtext(side = 1, text = at, at = at, 
+#         col = "grey20", line = 1, cex = 0.9)
+#   at = pretty(y)
+#   at = at[-c(1,length(at))]
+#   mtext(side = 2, text = at, at = at, col = "grey20", line = 1, cex = 0.9, las = 2)
+# }
+PrettyScatter <- function(x, y, main, bg, panel.first.step = 1, cex.lab = 1.5, xlim = F, ylim = F, xlab = '', ylab = '', abline = F){
+  if (xlim == F){
+    xlim = c(min(x), max(x))
+  }
+  if (ylim == F){
+    ylim = c(min(y), max(y))
+  }
+  plot(x, y, xlim = xlim, ylim = ylim,
        xlab = xlab, ylab = ylab, 
        cex.lab = cex.lab,
        bg = bg, # Fill colour
-       col = "grey10",
-       pch = 21,
+       col = bg,
+       pch = 20,
        axes = FALSE, # Don't plot the axes
        frame.plot = FALSE, # Remove the frame 
        #panel.first = ,
        main = main)
-  abline(h = seq(round(min(x)), round(max(y)), panel.first.step), col = 'grey60')
-  
+  if (abline == T){
+    abline(h = seq(round(min(x)), round(max(y)), panel.first.step), col = 'grey60')
+  }
   at = pretty(x)
   at = at[-c(1,length(at))]
   mtext(side = 1, text = at, at = at, 
         col = "grey20", line = 1, cex = 0.9)
   at = pretty(y)
   at = at[-c(1,length(at))]
-  mtext(side = 2, text = at, at = at, col = "grey20", line = 1, cex = 0.9, las = 2)
+  mtext(side = 2, text = at, at = at, col = "grey20", line = 1, cex = 0.9)
 }

@@ -317,3 +317,149 @@ png('out/mirtarbase+lastal/mosaic.png', 700)
 mosaic(struct, shade = TRUE, direction = "v", pop = FALSE)
 labeling_cells(text = as.table(struct), margin = 0)(as.table(struct))
 dev.off()
+
+
+
+################# group by ncRNA and find out which one has the largest effect
+lnc.mir.tar.fantom.l <- split(lnc.mir.tar.fantom, 
+                              lnc.mir.tar.fantom$KD.geneSymbol)
+la <- sapply(names(lnc.mir.tar.fantom.l), function(lncrna){
+  print(lncrna)
+  dt.i <- unique(lnc.mir.tar.fantom.l[[lncrna]][,c("Target Gene", "log2FC")])
+  data <- data.table(ceRNA = T,
+                     log2FC =dt.i$log2FC)
+  dt.j <- fantom_DE[KD.geneSymbol == lncrna & 
+                      !(geneSymbol %in% dt.i$`Target Gene`)][,c("geneSymbol", "log2FC")]
+  if(dt.i[,.N]>3 & dt.j[,.N]>3){
+    data <- rbindlist(list(data,
+                           data.table(ceRNA = F,
+                                      log2FC = dt.j$log2FC)))
+    data$ceRNA <- as.factor(data$ceRNA)
+    levels(data$ceRNA) <- ifelse(levels(data$ceRNA) == F, 
+                                 'not targeted by\nsponged miRNAs', 
+                                 'targeted by\nsponged miRNAs')
+    wilcox.test(data[ceRNA == 'targeted by\nsponged miRNAs']$log2FC,
+                data[ceRNA == 'not targeted by\nsponged miRNAs']$log2FC, 
+                paired = F)$`p.value`
+  }else
+    NULL
+}, simplify = F, USE.NAMES = T)
+la <- Filter(Negate(is.null), la)
+pvals.wilcox <- data.table(lncrna = names(la),
+                           pval = unlist(la))
+pvals.wilcox$FDR <- p.adjust(pvals.wilcox$pval, 'BH')
+
+thresh = 0.05
+pvals.wilcox <- pvals.wilcox[FDR<thresh]
+signif.lncrnas <- pvals.wilcox$lncrna
+# "CDKN2B-AS1" 1 value
+#lncrna <- names(lnc.mir.tar.fantom.l)[1]
+
+library(rcompanion)
+eff.size <- sapply(signif.lncrnas, function(lncrna){
+  print(lncrna)
+  dt.i <- unique(lnc.mir.tar.fantom.l[[lncrna]][,c("Target Gene", "log2FC")])
+  data <- data.table(ceRNA = T,
+                     log2FC =dt.i$log2FC)
+  dt.j <- fantom_DE[KD.geneSymbol == lncrna & 
+                      !(geneSymbol %in% dt.i$`Target Gene`)][,c("geneSymbol", "log2FC")]
+  if(dt.i[,.N]>3 & dt.j[,.N]>3){
+    data <- rbindlist(list(data,
+                           data.table(ceRNA = F,
+                                      log2FC = dt.j$log2FC)))
+    data$ceRNA <- as.factor(data$ceRNA)
+    levels(data$ceRNA) <- ifelse(levels(data$ceRNA) == F, 
+                                 'not targeted by\nsponged miRNAs', 
+                                 'targeted by\nsponged miRNAs')
+    data.table(lncrna = lncrna,
+              effect = wilcoxonR(data$log2FC, data$ceRNA),
+              sample.size = data[,.N])
+    
+  }else
+    NULL
+}, simplify = F, USE.NAMES = T)
+eff.size.dt <- rbindlist(eff.size)
+
+
+histogram(eff.size.dt$effect, 
+          type = 'count',
+          nint = 10, 
+          xlab = 'Effect size',
+          ylab = 'Number of lncRNAs',
+          col = "#AEAEEE96")
+PrettyScatter(x = eff.size.dt$effect, 
+              y = eff.size.dt$sample.size, 
+              bg = 'blue', 
+              main = '', 
+              xlab = 'effect size', 
+              ylab = 'sample size', 
+              cex.lab = 1)
+
+setorder(eff.size.dt, effect)
+
+library(gridExtra)
+library(grid)
+grid.table(eff.size.dt[1:26,])
+grid.table(eff.size.dt[27:52,])
+
+
+lncrna.pos <- 'NR2F1-AS1'
+dt.i <- unique(lnc.mir.tar.fantom.l[[lncrna.pos]][,c("Target Gene", "log2FC")])
+data <- data.table(ceRNA = T,
+                   log2FC =dt.i$log2FC)
+dt.j <- fantom_DE[KD.geneSymbol == lncrna.pos & 
+                    !(geneSymbol %in% dt.i$`Target Gene`)][,c("geneSymbol", "log2FC")]
+data <- rbindlist(list(data,
+                       data.table(ceRNA = F,
+                                  log2FC = dt.j$log2FC)))
+data$ceRNA <- as.factor(data$ceRNA)
+levels(data$ceRNA) <- ifelse(levels(data$ceRNA) == F, 
+                             'not targeted by\nsponged miRNAs', 
+                             'targeted by\nsponged miRNAs')
+
+lncrna.pos <- 'SNHG18'
+dt.i <- unique(lnc.mir.tar.fantom.l[[lncrna.pos]][,c("Target Gene", "log2FC")])
+data2 <- data.table(ceRNA = T,
+                   log2FC =dt.i$log2FC)
+dt.j <- fantom_DE[KD.geneSymbol == lncrna.pos & 
+                    !(geneSymbol %in% dt.i$`Target Gene`)][,c("geneSymbol", "log2FC")]
+data2 <- rbindlist(list(data2,
+                       data.table(ceRNA = F,
+                                  log2FC = dt.j$log2FC)))
+data2$ceRNA <- as.factor(data2$ceRNA)
+levels(data2$ceRNA) <- ifelse(levels(data2$ceRNA) == F, 
+                             'not targeted by\nsponged miRNAs', 
+                             'targeted by\nsponged miRNAs')
+list.val = list(data,data2)
+
+par(mfrow=c(2,3))
+dts.plot <- sapply(eff.size.dt[effect < -0.3]$lncrna, function(lncrna){
+  print(lncrna)
+  dt.i <- unique(lnc.mir.tar.fantom.l[[lncrna]][,c("Target Gene", "log2FC")])
+  data <- data.table(ceRNA = T,
+                     log2FC =dt.i$log2FC)
+  dt.j <- fantom_DE[KD.geneSymbol == lncrna & 
+                      !(geneSymbol %in% dt.i$`Target Gene`)][,c("geneSymbol", "log2FC")]
+  data <- rbindlist(list(data,
+                         data.table(ceRNA = F,
+                                    log2FC = dt.j$log2FC)))
+  data$ceRNA <- as.factor(data$ceRNA)
+  levels(data$ceRNA) <- ifelse(levels(data$ceRNA) == F, 
+                               'not targeted by\nsponged miRNAs', 
+                               'targeted by\nsponged miRNAs')
+  data
+}, simplify = F, USE.NAMES = T)
+  
+par(mfrow=c(2,3))
+for(lncrna in eff.size.dt[effect < -0.3]$lncrna){
+  
+  DrawMultipleBoxplots(list(dts.plot$SNHG18[ceRNA=='targeted by\nsponged miRNAs']$log2FC, 
+                            dts.plot$SNHG18[ceRNA=='not targeted by\nsponged miRNAs']$log2FC), 
+                       ylab = 'logFC', main = '', ylim = c(min(dts.plot), max(unlist(list.val))),
+                       cex.lab.x = 0.9, xlim = c(0.8,1.6))
+}
+
+DrawMultipleBoxplots(list(dts.plot$`RP11-834C11.4`[ceRNA=='targeted by\nsponged miRNAs']$log2FC, 
+                          dts.plot$`RP11-834C11.4`[ceRNA=='not targeted by\nsponged miRNAs']$log2FC), 
+                     ylab = 'logFC', main = '', ylim = c(min(unlist(list.val)), max(unlist(list.val))),
+                     cex.lab.x = 0.9, xlim = c(0.8,1.6))
