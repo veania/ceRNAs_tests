@@ -14,63 +14,48 @@ fantom_DE$geneSymbol <- stringr::str_remove(fantom_DE$geneSymbol, 'HG')
 
 # experimentally confirmed from DB 2019  
 lncRNA.miRNA.interaction <- fread('data/lncTarD.txt')[grep('mir', Target, ignore.case = T), c('Regulator', 'RegulatorEnsembleID', 'RegulatorAliases', 'Target')]
-lncRNA.miRNA.interaction <- as.data.table(read_excel('data/lnc2target.xlsx'))[
-  `Species`=='Homo sapiens'][
-    grep('mir', Target_official_symbol,ignore.case = T), c("lncRNA_name_from_paper",
-                                                           "LncRNA_official_symbol",
-                                                           "Ensembl_ID",
-                                                           "Target_symbol_from_paper",
-                                                           "Target_official_symbol",
-                                                           "Target_entrez_gene_ID")]
-setnames(lncRNA.miRNA.interaction, c("LncRNA_official_symbol", "Ensembl_ID"), 
-                                   c('Regulator', 'RegulatorEnsembleID'))
-lncRNA.miRNA.interaction$lncRNA_name_from_paper <- toupper(lncRNA.miRNA.interaction$lncRNA_name_from_paper)
-lnc2target.int <- intersect(toupper(unique(lncRNA.miRNA.interaction$lncRNA_name_from_paper)), 
-                            unique(lncRNA.miRNA.interaction$Regulator))
-lnc2target.lncrnas <- c(unique(lncRNA.miRNA.interaction$lncRNA_name_from_paper)[
-  !unique(lncRNA.miRNA.interaction$lncRNA_name_from_paper) %in% lnc2target.int],
-  unique(lncRNA.miRNA.interaction$Regulator)[
-    !unique(lncRNA.miRNA.interaction$Regulator) %in% lnc2target.int],
-  lnc2target.int)
-lnc2target.NOT.in.fantom <- unique(lncRNA.miRNA.interaction[!RegulatorEnsembleID %in% fantom_DE$KD.geneID,
-                                                     c('Regulator', 'RegulatorEnsembleID')])[
-                                                       Regulator != 'NA' & RegulatorEnsembleID != 'NA']
-library("biomaRt")
-listMarts()
-ensembl <- useMart("ensembl")
-datasets <- listDatasets(ensembl)
-ensembl = useDataset("hsapiens_gene_ensembl",mart=ensembl)
-attributes = listAttributes(ensembl)
-lnc2target.NOT.in.fantom.biomart <- getBM(attributes=c('ensembl_gene_id', 'hgnc_symbol'),
-                               filters = 'ensembl_gene_id',
-                               values = unique(lnc2target.NOT.in.fantom$RegulatorEnsembleID),
-                               mart = ensembl)
-lnc2target.NOT.in.fantom.biomart <- as.data.table(lnc2target.NOT.in.fantom.biomart)
-setnames(lnc2target.NOT.in.fantom.biomart, colnames(lnc2target.NOT.in.fantom.biomart), 
-         c('RegulatorEnsembleID', 'biomart_hgnc'))
-lnc2target.NOT.in.fantom.biomart <- merge(lnc2target.NOT.in.fantom,
-                                          lnc2target.NOT.in.fantom.biomart,
-                                          by = 'RegulatorEnsembleID')
+
+# leave only lncRNAs present in FANTOM DE
+lncrna.mirna.int.fantom <- lncRNA.miRNA.interaction[RegulatorEnsembleID %in% fantom_DE$KD.geneID]
+lncrna.mirna.int.fantom$Target <- paste0('hsa-', lncrna.mirna.int.fantom$Target)
 
 
-fantomDE.biomart <- getBM(attributes=c('ensembl_gene_id', 'hgnc_symbol'),
-                                          filters = 'ensembl_gene_id',
-                                          values = unique(fantom_DE$KD.geneID),
-                                          mart = ensembl)
-fantomDE.biomart <- as.data.table(fantomDE.biomart)
-setnames(fantomDE.biomart, colnames(fantomDE.biomart), c('KD.geneID', 'biomart_hgnc'))
-fantomDE.biomart <- merge(fantomDE.biomart,
-                          unique(fantom_DE[, c('KD.geneID',"KD.geneSymbol")]))
-fantomDE.biomart[biomart_hgnc !=KD.geneSymbol & biomart_hgnc !='']$biomart_hgnc %in% lnc2target.NOT.in.fantom.biomart$biomart_hgnc
-
-
-
-
-
-
-
-
-
+# library("biomaRt")
+# listMarts()
+# ensembl <- useMart("ensembl")
+# datasets <- listDatasets(ensembl)
+# ensembl = useDataset("hsapiens_gene_ensembl",mart=ensembl)
+# attributes = listAttributes(ensembl)
+# lnc2target.NOT.in.fantom.biomart <- getBM(attributes=c('ensembl_gene_id', 'hgnc_symbol'),
+#                                filters = 'ensembl_gene_id',
+#                                values = unique(lnc2target.NOT.in.fantom$RegulatorEnsembleID),
+#                                mart = ensembl)
+# lnc2target.NOT.in.fantom.biomart <- as.data.table(lnc2target.NOT.in.fantom.biomart)
+# setnames(lnc2target.NOT.in.fantom.biomart, colnames(lnc2target.NOT.in.fantom.biomart),
+#          c('RegulatorEnsembleID', 'biomart_hgnc'))
+# lnc2target.NOT.in.fantom.biomart <- merge(lnc2target.NOT.in.fantom,
+#                                           lnc2target.NOT.in.fantom.biomart,
+#                                           by = 'RegulatorEnsembleID')
+# 
+# 
+# fantomDE.biomart <- getBM(attributes=c('ensembl_gene_id', 'hgnc_symbol'),
+#                                           filters = 'ensembl_gene_id',
+#                                           values = unique(fantom_DE$KD.geneID),
+#                                           mart = ensembl)
+# fantomDE.biomart <- as.data.table(fantomDE.biomart)
+# setnames(fantomDE.biomart, colnames(fantomDE.biomart), c('KD.geneID', 'biomart_hgnc'))
+# fantomDE.biomart <- merge(fantomDE.biomart,
+#                           unique(fantom_DE[, c('KD.geneID',"KD.geneSymbol")]))
+# fantomDE.biomart[biomart_hgnc !=KD.geneSymbol & biomart_hgnc !='']$biomart_hgnc %in% lnc2target.NOT.in.fantom.biomart$biomart_hgnc
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
 # lncRNA.knownCE.in.fantom <- unique(lncRNA.miRNA.interaction[RegulatorEnsembleID %in% fantom_DE$KD.geneID]$Regulator)
 # lncRNA.knownCE.not.in.fantom <- unique(lncRNA.miRNA.interaction[!RegulatorEnsembleID %in% fantom_DE$KD.geneID]$Regulator)
 # 
@@ -85,12 +70,12 @@ fantomDE.biomart[biomart_hgnc !=KD.geneSymbol & biomart_hgnc !='']$biomart_hgnc 
 # aliases_search <- lapply(aliases_search, function(x){if(length(x)>0){x}})
 # aliases_search <- Filter(Negate(is.null), aliases_search)
 # lncRNA.knownCE.in.fantom.to.add <- c("HOXD-AS1", "ZEB2-AS", "ILF3-AS1", "LINC00152", "CDKN2B-AS", "NME1")
-# 
+# #
 # lncRNA.knownCE.in.fantom <- c(lncRNA.knownCE.in.fantom,
 #                               lncRNA.knownCE.in.fantom2,
 #                               lncRNA.knownCE.in.fantom.to.add)
-
-# lncrna.mirna.int.fantom <- 
+# 
+# lncrna.mirna.int.fantom <-
 #   rbindlist(sapply(lncRNA.knownCE.in.fantom, function(alias){
 #   res <- lncRNA.miRNA.interaction[grep(alias, RegulatorAliases)]
 #   if(res[,.N] == 0){
@@ -102,17 +87,16 @@ fantomDE.biomart[biomart_hgnc !=KD.geneSymbol & biomart_hgnc !='']$biomart_hgnc 
 # lncrna.mirna.int.fantom$Target <- paste0('hsa-', lncrna.mirna.int.fantom$mirna)
 
 
-# ensembl.mirna.corresp.mirbase_id <- getBM(attributes=c('ensembl_gene_id', 'mirbase_id', 'mirbase_accession', 'hgnc_symbol'), 
-#                                            filters = 'mirbase_id', 
-#                                            values = unique(lncrna.mirna.int.fantom$Target), 
-#                                            mart = ensembl)
-# 
-# 
-# not.found.mirna <- lncrna.mirna.int.fantom$Target[
-#   !tolower(lncrna.mirna.int.fantom$Target) %in% ensembl.mirna.corresp.mirbase_id$mirbase_id]
-# 
-# not.found.mirna %in% mirtarbase_valid$miRNA
-# 
+ensembl.mirna.corresp.mirbase_id <- getBM(attributes=c('ensembl_gene_id', 'mirbase_id', 'mirbase_accession', 'hgnc_symbol'),
+                                           filters = 'mirbase_id',
+                                           values = unique(lncrna.mirna.int.fantom$Target),
+                                           mart = ensembl)
+
+not.found.mirna <- lncrna.mirna.int.fantom$Target[
+  !tolower(lncrna.mirna.int.fantom$Target) %in% ensembl.mirna.corresp.mirbase_id$mirbase_id]
+
+not.found.mirna %in% mirtarbase_valid$miRNA
+#
 # 
 mature.mirna.ids <- unique(lncrna.mirna.int.fantom$Target)[grep('-3p', unique(lncrna.mirna.int.fantom$Target))]
 mature.mirna.ids2 <- unique(lncrna.mirna.int.fantom$Target)[grep('-5p', unique(lncrna.mirna.int.fantom$Target))]
@@ -165,7 +149,7 @@ lncrna.mirna.int.fantom <- merge(x = lncrna.mirna.int.fantom,
                                  y = mirna_id.corresp,
                                  by.x = 'Target',
                                  by.y = "mirna.lnc.inter.db_id")
-lncrna.mirna.int.fantom <- lncrna.mirna.int.fantom[, c('lncrna', 'mature_mirna')]
+lncrna.mirna.int.fantom <- lncrna.mirna.int.fantom[, c('Regulator', 'RegulatorEnsembleID', 'mature_mirna')]
 
 
 
@@ -194,120 +178,198 @@ lnc.mir.targets <- merge(x = mirtarbase_valid,
                      by.y = 'mature_mirna',
                      allow.cartesian = T)
 lnc.mir.targets <- 
-  unique(lnc.mir.targets[,c('lncrna', 'miRNA', 'Target Gene')])
+  unique(lnc.mir.targets[,c('Regulator', 'RegulatorEnsembleID', 'miRNA', 'Target Gene')])
 setnames(lnc.mir.targets, 
-         colnames(lnc.mir.targets), 
-         c('lncrna', 'mirna', 'mir.target'))
+         c('Regulator', 'RegulatorEnsembleID', 'miRNA'), 
+         c('lncrna', 'lncrna.ensemble.id', 'mirna'))
 
 lncRNA.mirna.target.logFC <- merge(x = lnc.mir.targets,
-                                   y = fantom_DE[, c("KD.geneSymbol", 'geneSymbol', 'log2FC')],
-                                   by.x = c("lncrna", 'mir.target'),
-                                   by.y = c("KD.geneSymbol", 'geneSymbol'))
-
-setnames(lncRNA.mirna.target.logFC, 'log2FC', 'mir_target_log2FC')
-boxplot(lncRNA.mirna.target.logFC$mir_target_log2FC)
-boxplot(lncRNA.mirna.target.logFC[mir_target_log2FC>1 | mir_target_log2FC < -1]$mir_target_log2FC,
-        fantom_DE$log2FC)
-boxplot(lncRNA.mirna.target.logFC[mir_target_log2FC>1 | mir_target_log2FC < -1]$mir_target_log2FC,
-        fantom_DE[log2FC>1 | log2FC < -1]$log2FC)
+                                   y = fantom_DE[, c("KD.geneID", "KD.geneSymbol", 'geneSymbol', 'log2FC')],
+                                   by.x = c('lncrna.ensemble.id', 'Target Gene'),
+                                   by.y = c("KD.geneID", 'geneSymbol'))
 
 
-fantom_DE[, ceRNA:=ifelse(KD.geneSymbol %in% lncRNA.knownCE.in.fantom, T, F)]
-fantom_DE.not.sponge <- fantom_DE[ceRNA == F]
-fantom_DE.sponge <- fantom_DE[ceRNA == T]
+fantom_DE_not_sponge.exp <- fantom_DE[!(KD.geneID %in% lncRNA.mirna.target.logFC $lncrna.ensemble.id &
+                                      geneSymbol %in% lncRNA.mirna.target.logFC $mir.target)]
 
-boxplot(lncRNA.mirna.target.logFC$mir_target_log2FC,
-        fantom_DE.not.sponge$log2FC)
-boxplot(lncRNA.mirna.target.logFC[mir_target_log2FC>1 | mir_target_log2FC < -1]$mir_target_log2FC,
-        fantom_DE.not.sponge[log2FC>1 | log2FC < -1]$log2FC)
-wilcox.test(lncRNA.mirna.target.logFC[mir_target_log2FC>1 | mir_target_log2FC < -1]$mir_target_log2FC,
-            fantom_DE.not.sponge[log2FC>1 | log2FC < -1]$log2FC,
-            paired = F)
+list.val = list(
+  all = fantom_DE$log2FC,
+  `not targeted by\nsponged miRNAs` = fantom_DE_not_sponge$log2FC,
+  `targeted by\nsponged miRNAs` = lncRNA.mirna.target.logFC$log2FC)
+wilcox.test(list.val$`not targeted by\nsponged miRNAs`, 
+            list.val$`targeted by\nsponged miRNAs`, paired = F)
+wilcox.test(list.val$all,
+            list.val$`targeted by\nsponged miRNAs`, paired = F)
 
-# chi squared
-contingency.table.sponge <- data.table('rise' = sum(lncRNA.mirna.target.logFC$mir_target_log2FC>1),
-                                       'fall' = sum(lncRNA.mirna.target.logFC$mir_target_log2FC < -1))
-contingency.table.not.sponge <- data.table('rise' = sum(fantom_DE.not.sponge$log2FC>1),
-                                           'fall' = sum(fantom_DE.not.sponge$log2FC < -1))
-contingency.table <- rbindlist(list(contingency.table.not.sponge,
-                                    contingency.table.sponge))
-chisq.test(contingency.table)
-df <- contingency.table
+png('out/mirtarbase+lnctard/three.boxplots.signif.png', width = 700, height = 600)
+at.x.by = 0.5
+DrawMultipleBoxplots(list.val, ylab = 'logFC', main = '', ylim = c(min(unlist(list.val)), 11),
+                     cex.lab.x = 1.1, at.x.by = at.x.by, xlim = c(0.8, 1.2+2*at.x.by),
+                     proportion.custom = T, proportion = rep(1/3, 3))
 
-library("graphics")
-library(viridis)
-
-#png('out/chi.squared.sponges.png', width = 700)
-mosaicplot(df,
-           main = "Gene expression falls more often in case of non-sponge lncRNAs", 
-           sub = paste0('chi squared test p-value = ', round(test.res$p.value,33)),
-           cex.axis = 1, 
-           color = viridis(4, alpha = 0.5))
+y <- max(list.val$all)+3
+# set an offset for tick lengths
+offset <- 0.2
+# draw first horizontal line
+lines(c(1,1+at.x.by, 1+2*at.x.by),c(y, y, y))
+# draw ticks
+lines(c(1,1),c(y, y-offset))
+lines(c(1+2*at.x.by,1+2*at.x.by),c(y, y-offset))
+text(1+at.x.by,y+0.5,"***")
 dev.off()
 
+################# group by ncRNA and find out which one has the largest effect
+lnc.mir.tar.fantom.l <- split(lncRNA.mirna.target.logFC, 
+                              lncRNA.mirna.target.logFC$lncrna)
+la <- sapply(names(lnc.mir.tar.fantom.l), function(lncrna){
+  print(lncrna)
+  dt.i <- unique(lnc.mir.tar.fantom.l[[lncrna]][,c("Target Gene", "log2FC")])
+  data <- data.table(ceRNA = T,
+                     log2FC =dt.i$log2FC)
+  dt.j <- fantom_DE[KD.geneSymbol == lncrna & 
+                      !(geneSymbol %in% dt.i$`Target Gene`)][,c("geneSymbol", "log2FC")]
+  if(dt.i[,.N]>3 & dt.j[,.N]>3){
+    data <- rbindlist(list(data,
+                           data.table(ceRNA = F,
+                                      log2FC = dt.j$log2FC)))
+    data$ceRNA <- as.factor(data$ceRNA)
+    levels(data$ceRNA) <- ifelse(levels(data$ceRNA) == F, 
+                                 'not targeted by\nsponged miRNAs', 
+                                 'targeted by\nsponged miRNAs')
+    wilcox.test(data[ceRNA == 'targeted by\nsponged miRNAs']$log2FC,
+                data[ceRNA == 'not targeted by\nsponged miRNAs']$log2FC, 
+                paired = F)$`p.value`
+  }else
+    NULL
+}, simplify = F, USE.NAMES = T)
+la <- Filter(Negate(is.null), la)
+pvals.wilcox <- data.table(lncrna = names(la),
+                           pval = unlist(la))
+pvals.wilcox$FDR <- p.adjust(pvals.wilcox$pval, 'BH')
 
-# beautiful pictures
+thresh = 0.05
+pvals.wilcox <- pvals.wilcox[FDR<thresh]
+signif.lncrnas <- pvals.wilcox$lncrna
+# "CDKN2B-AS1" 1 value
+#lncrna <- names(lnc.mir.tar.fantom.l)[1]
 
-# compare logFC of targets of mirna sponged by lncrna & all targets of lncrna
-data <- data.table(ceRNA = T,
-                   log2FC = lncRNA.mirna.target.logFC$mir_target_log2FC)
-data <- rbindlist(list(data,
-                       data.table(ceRNA = F,
-                                  log2FC = fantom_DE.not.sponge$log2FC)))
-data$ceRNA <- as.factor(data$ceRNA)
-levels(data$ceRNA) <- ifelse(levels(data$ceRNA) == F, 'not a sponge', 'a sponge')
-wilcox.test(data[ceRNA == 'a sponge']$log2FC, data[ceRNA == 'not a sponge']$log2FC, paired = F)
+library(rcompanion)
+# ATTENTION! With CIs works really slow, takes about 0.5h:
+eff.size <- sapply(signif.lncrnas, function(lncrna){
+  print(lncrna)
+  dt.i <- unique(lnc.mir.tar.fantom.l[[lncrna]][,c("Target Gene", "log2FC")])
+  data <- data.table(ceRNA = T,
+                     log2FC =dt.i$log2FC)
+  dt.j <- fantom_DE[KD.geneSymbol == lncrna & 
+                      !(geneSymbol %in% dt.i$`Target Gene`)][,c("geneSymbol", "log2FC")]
+  if(dt.i[,.N]>3 & dt.j[,.N]>3){
+    data <- rbindlist(list(data,
+                           data.table(ceRNA = F,
+                                      log2FC = dt.j$log2FC)))
+    data$ceRNA <- as.factor(data$ceRNA)
+    levels(data$ceRNA) <- ifelse(levels(data$ceRNA) == F, 
+                                 'not targeted by\nsponged miRNAs', 
+                                 'targeted by\nsponged miRNAs')
+    # data$ceRNA <- factor(data$ceRNA, levels=rev(levels(data$ceRNA)))
+    eff.size.calc = wilcoxonR(data$log2FC, data$ceRNA, ci = TRUE)
+    vda = vda(x = data[ceRNA == 'not targeted by\nsponged miRNAs']$log2FC, 
+              y = data[ceRNA == 'targeted by\nsponged miRNAs']$log2FC,
+              ci=TRUE)
+    data.table(lncrna = lncrna,
+               r = eff.size.calc[,1],
+               r.lower.ci = eff.size.calc[,2],
+               r.upper.ci = eff.size.calc[,3],
+               vda = vda[,1],
+               vda.lower.ci = vda[,2],
+               vda.upper.ci = vda[,3],
+               sample.size = data[,.N])
+    
+  }else
+    NULL
+}, simplify = F, USE.NAMES = T)
+eff.size.dt <- rbindlist(eff.size)
 
-#ylim1 = boxplot.stats(data$log2FC)$stats[c(1, 5)]
 
-png('out/mirtarbase+lnctard/boxplot.mir.targets.vs.all.targets.non-sponge.lnc.png', width = 700)
-DrawTwoBoxplots(data, 
-                main = "All targets of miRNAs sponged by lncRNAs vs all targets of non-sponge lncRNAs\np-value = 0.0003")
-dev.off()
 
-# compare only DE targets of mirna sponged by lncrna & DE targets of non-sponge lncrna
-data <- data.table(ceRNA = T,
-                   log2FC = lncRNA.mirna.target.logFC[
-                     mir_target_log2FC > 1 | mir_target_log2FC < -1]$mir_target_log2FC)
-data <- rbindlist(list(data,
-                       data.table(ceRNA = F,
-                                  log2FC = fantom_DE.not.sponge[log2FC > 1 | log2FC < -1]$log2FC)))
-data$ceRNA <- as.factor(data$ceRNA)
-levels(data$ceRNA) <- ifelse(levels(data$ceRNA) == F, 'not a sponge', 'a sponge')
-wilcox.test(data[ceRNA == 'a sponge']$log2FC, data[ceRNA == 'not a sponge']$log2FC, paired = F)
+histogram(eff.size.dt$r, 
+          type = 'count',
+          nint = 10, 
+          xlab = 'Effect size',
+          ylab = 'Number of lncRNAs',
+          col = "#AEAEEE96")
+PrettyScatter(x = eff.size.dt$r, 
+              y = eff.size.dt$sample.size, 
+              bg = "#0000FF7D", 
+              main = '', 
+              xlab = 'effect size', 
+              ylab = 'sample size', 
+              cex.lab = 1)
 
-png('out/mirtarbase+lnctard/boxplot.DE.mir.targets.vs.DE.non-sponge.lnc.targets.png', width = 700)
-DrawTwoBoxplots(data, 
-                main = "DE targets of miRNAs sponged by lncRNAs vs DE targets of non-sponge lncRNAs\np-value = 0.037")
-dev.off()
+setorder(eff.size.dt, -vda)
 
-# compare only DE targets of mirna sponged by lncrna & DE targets all lncrna
-data <- data.table(ceRNA = T,
-                   log2FC = lncRNA.mirna.target.logFC[
-                     mir_target_log2FC > 1 | mir_target_log2FC < -1]$mir_target_log2FC)
-data <- rbindlist(list(data,
-                       data.table(ceRNA = F,
-                                  log2FC = fantom_DE[log2FC > 1 | log2FC < -1]$log2FC)))
-data$ceRNA <- as.factor(data$ceRNA)
-levels(data$ceRNA) <- ifelse(levels(data$ceRNA) == F, 'all', 'a sponge')
-wilcox.test(data[ceRNA == 'a sponge']$log2FC, data[ceRNA == 'all']$log2FC, paired = F)
+eff.size.add <- sapply(signif.lncrnas, function(lncrna){
+  print(lncrna)
+  dt.i <- unique(lnc.mir.tar.fantom.l[[lncrna]][,c("Target Gene", "log2FC")])
+  data <- data.table(ceRNA = T,
+                     log2FC =dt.i$log2FC)
+  dt.j <- fantom_DE[KD.geneSymbol == lncrna & 
+                      !(geneSymbol %in% dt.i$`Target Gene`)][,c("geneSymbol", "log2FC")]
+  if(dt.i[,.N]>3 & dt.j[,.N]>3){
+    data <- rbindlist(list(data,
+                           data.table(ceRNA = F,
+                                      log2FC = dt.j$log2FC)))
+    data$ceRNA <- as.factor(data$ceRNA)
+    data.table(lncrna = lncrna,
+               sponged.sample.size = data[ceRNA == T, .N],
+               not.sponged.sample.size = data[ceRNA == F, .N])
+    
+  }else
+    NULL
+}, simplify = F, USE.NAMES = T)
+eff.size.add.dt <- rbindlist(eff.size.add)
+eff.size.full <- merge(eff.size.dt,
+                       eff.size.add.dt,
+                       by = 'lncrna')
+eff.size.full$FDR <- pvals.wilcox[match(eff.size.full$lncrna, lncrna)]$FDR
+#saveRDS(eff.size.full, file = 'out/eff.size.full.SUPPORT_TYPE_FILTERED.RDS')
 
-png('out/mirtarbase+lnctard/boxplot.DE.mir.targets.vs.DE.all.lnc.targets.png', width = 700)
-DrawTwoBoxplots(data, 
-                main = "DE targets of miRNAs sponged by lncRNAs vs DE targets of all lncRNAs\np-value = 0.044")
-dev.off()
+library(gridExtra)
+library(grid)
+mytheme <- gridExtra::ttheme_default(
+  core = list(fg_params=list(cex = 0.8)),
+  colhead = list(fg_params=list(cex = 0.8)),
+  rowhead = list(fg_params=list(cex = 0.8)))
 
-# compare all targets of mirna sponged by lncrna & all targets all lncrna
-data <- data.table(ceRNA = T,
-                   log2FC = lncRNA.mirna.target.logFC$mir_target_log2FC)
-data <- rbindlist(list(data,
-                       data.table(ceRNA = F,
-                                  log2FC = fantom_DE$log2FC)))
-data$ceRNA <- as.factor(data$ceRNA)
-levels(data$ceRNA) <- ifelse(levels(data$ceRNA) == F, 'all', 'a sponge')
-wilcox.test(data[ceRNA == 'a sponge']$log2FC, data[ceRNA == 'all']$log2FC, paired = F)
+setorder(eff.size.full, -vda)
+myt <- gridExtra::tableGrob(eff.size.full, theme = mytheme)
 
-png('out/mirtarbase+lnctard/boxplot.all.mir.targets.vs.all.lnc.targets.png', width = 700)
-DrawTwoBoxplots(data, 
-                main = "All targets of miRNAs sponged by lncRNAs vs all targets of all lncRNAs\np-value = 0.0003")
-dev.off()
+grid.draw(myt)
+
+
+
+# plot all
+par(mfrow=c(1,3))
+for(lncrna.i in eff.size.full$lncrna[1:3]){
+  dt.T <- unique(lnc.mir.tar.fantom.l[[lncrna.i]][,c("Target Gene", "log2FC")])
+  dt.F <- fantom_DE[KD.geneSymbol == lncrna.i & 
+                      !(geneSymbol %in% dt.i$`Target Gene`)][,c("geneSymbol", "log2FC")]
+  dts.plot = list(not.sponged = dt.F$log2FC,
+                  sponged = dt.T$log2FC)
+  DrawMultipleBoxplots(dts.plot, 
+                       ylab = 'logFC', 
+                       main = paste0(lncrna.i, '\nvda = ', eff.size.full[lncrna == lncrna.i]$vda,
+                                     ', FDR = ', round(pvals.wilcox[lncrna == lncrna.i]$FDR, 5)), 
+                       ylim = c(-6, 7),
+                       cex.lab.x = 0.7, 
+                       cex.lab.y = 0.7,
+                       xlim = c(0.8,1.6),
+                       main.cex = 0.8,
+                       at.y.custom = T,
+                       at.y = pretty(c(-6:7), 5),
+                       at.y.cex = 0.7,
+                       at.x.by = .35)
+}
+
+
+
+

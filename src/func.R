@@ -29,10 +29,17 @@ DrawBaseBoxplot <- function(list.val, cex.lab, ylim, proportion, at.x, xlim, col
           xlim = xlim)
 }
 DrawMultipleBoxplots <- function(list.val, ylab = '', main = '', 
-                              xlim = c(.8,1.8), ylim = c(-10,10), cex.lab.y = 1.2, cex.lab.x = 1){
-  at.y = pretty(unlist(list.val), 7)
-  proportion <- unlist(lapply(list.val, length))/sum(unlist(lapply(list.val, length)))
-  at.x <- seq(1,by=.3,length.out=length(list.val))
+                              xlim = c(.8,1.8), ylim = c(-10,10), cex.lab.y = 1.2, cex.lab.x = 1, main.cex = 1.5,
+                              num.ticks.y = 7, at.y.custom = F, at.y.cex = 0.9, at.x.by = .3, proportion.custom = F,
+                              at.y = NULL, proportion = NULL){
+  if (at.y.custom == F){
+    at.y = pretty(unlist(list.val), num.ticks.y)
+  }
+  if (proportion.custom == F){
+    proportion <- unlist(lapply(list.val, length))/sum(unlist(lapply(list.val, length)))
+  }
+  
+  at.x <- seq(1,by=at.x.by,length.out=length(list.val))
   DrawBaseBoxplot(list.val, cex.lab, ylim, proportion, at.x, xlim, col = F)
   #abline(h = at.y, col = 'grey80')
   # grid(5,5)
@@ -45,9 +52,9 @@ DrawMultipleBoxplots <- function(list.val, ylab = '', main = '',
   mtext(side = 2, text = ylab, at = 4,
         col = "grey20", line = 2, cex = cex.lab.y)
   #at = at[-c(1,length(at))]
-  mtext(side = 2, text = at.y, at = at.y, col = "grey20", line = 1, cex = 0.9)
+  mtext(side = 2, text = at.y, at = at.y, col = "grey20", line = 1, cex = at.y.cex)
   mtext(side = 3, text = main,
-        col = "grey20", line = 1, cex = 1.5)
+        col = "grey20", line = 1, cex = main.cex)
 }
 
 is.even <- function(x) x %% 2 == 0
